@@ -1,0 +1,25 @@
+plugins { id 'com.android.application' }
+android {
+    namespace 'com.nitte.digital'
+    compileSdk 34
+    defaultConfig {
+        applicationId 'com.nitte.digital'
+        minSdk 24
+        targetSdk 34
+        versionCode 16
+        versionName '2.6'
+    }
+    signingConfigs {
+        nitte {
+            storeFile file('nitte-release.jks')
+            storePassword 'nitte2026'
+            keyAlias 'nitte'
+            keyPassword 'nitte2026'
+        }
+    }
+    buildTypes {
+        debug { signingConfig signingConfigs.nitte }
+        release { minifyEnabled false; signingConfig signingConfigs.nitte }
+    }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_1_8; targetCompatibility JavaVersion.VERSION_1_8 }
+}
