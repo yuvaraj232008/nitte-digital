@@ -147,6 +147,7 @@ table.xls th{background:#e8f1ec;color:#1e4d33;font-size:12px}table.xls td{paddin
 table.xls th.cl{background:#f3f4f6;color:#888;font-weight:500;font-size:11px;height:22px;padding:0 6px}table.xls td.rn{background:#f3f4f6;color:#888;font-size:11px;width:34px}
 .dl{position:fixed;inset:0;background:rgba(16,26,79,.45);display:grid;place-items:center;z-index:40;padding:16px}.dl .box{background:#fff;border-radius:16px;padding:22px;max-width:360px;width:100%;text-align:center}
 .dl a.save{display:block;margin:14px 0 8px;padding:13px;border-radius:10px;background:#1e7145;color:#fff;font-weight:700;text-decoration:none}.dl p{font-size:13px;color:var(--muted);line-height:1.5;margin:6px 0}
+.aibar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:16px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:#fff;font-size:13px;max-width:900px}.aibar select{height:38px;border-radius:10px;border:1px solid var(--line);background:#fff;font:inherit;padding:0 8px;color:var(--ink)}.aibar input{max-width:270px;height:38px!important}.aimsg{font-size:12px;color:var(--muted);flex-basis:100%}
 </style>
 </head>
 <body>
@@ -214,7 +215,7 @@ table.xls th.cl{background:#f3f4f6;color:#888;font-weight:500;font-size:11px;hei
     <h2 class="vtitle">Your sheets</h2>
     <p class="sub">Open a sheet, then scan a handwritten page. HTS reads it and arranges it into rows and columns for you.</p>
     <div class="tools" id="slots"></div>
-    <div class="engine"><label for="eng">Reading engine</label>
+    <div class="engine hidden"><label for="eng">Reading engine</label>
       <select id="eng"><option value="free">Free, on this device</option><option value="ai">AI (Claude API key), best for handwriting</option></select>
       <input id="akey" type="password" placeholder="Paste Claude API key" class="hidden" autocomplete="off">
     </div>
@@ -231,11 +232,18 @@ table.xls th.cl{background:#f3f4f6;color:#888;font-weight:500;font-size:11px;hei
       <button type="button" class="pbtn danger" id="cClear">Clear all cards</button>
       <button type="button" class="pbtn y" id="cXlsx">⬇ Download Excel</button>
     </div>
+    <div class="aibar">
+      <label for="cEng"><b>Reading</b></label>
+      <select id="cEng"><option value="auto">⭐ Auto: best reader available</option><option value="free">Offline (free, on the phone)</option><option value="ai">AI: Claude Sonnet (good handwriting reading)</option><option value="opus">AI: Claude Opus (best for the worst handwriting)</option><option value="gemini">AI: Google Gemini (free tier)</option></select>
+      <span id="cAiBox" class="hidden" style="display:contents"><input id="cKey" type="password" placeholder="Claude API key (sk-ant-…) for Opus" autocomplete="off"><input id="cGKey" class="hidden" type="password" placeholder="Paste Gemini API key (AIza…)" autocomplete="off"><button type="button" class="pbtn" id="cTest">Test key</button></span>
+      <button type="button" class="pbtn" id="cChk">Check text reader</button>
+      <span id="cAiMsg" class="aimsg"></span>
+    </div>
     <div class="flag hidden" id="cDone"></div>
     <div class="xtabs" id="xTabs"></div>
     <div class="tw xlw"><table class="grid xls" id="cList"></table></div>
     <p class="sub" style="margin-top:10px">Tap a student's row to open their card and check or correct the marks. Scanning the same USN again updates that row.</p>
-    <p class="sub" style="font-size:11px">Nitte Digital HTS version 2.6 · built-in text reader</p>
+    <p class="sub" style="font-size:11px">Nitte Digital HTS version 3.0 · built-in text reader</p>
   </div>
   <div id="vCard" class="hidden">
     <button type="button" class="back" data-go="vCards">← Marks cards</button>
@@ -874,7 +882,7 @@ function renderSlots(){var nc=getCards().length;var h='<button type="button" cla
   $('slots').innerHTML=h;
   $('slots').querySelectorAll('[data-id]').forEach(function(b){b.onclick=function(){CUR=b.dataset.id;view('vTable')}});
   $('addSlot').onclick=openAddT;$('cardSlot').onclick=function(){view('vCards')};
-  var eng=store('l','hts_eng')||'free';$('eng').value=eng;$('akey').classList.toggle('hidden',eng!=='ai');$('akey').value=store('l','hts_key')||''}
+}
 $('eng').onchange=function(){store('l','hts_eng',this.value);$('akey').classList.toggle('hidden',this.value!=='ai')};
 $('akey').oninput=function(){store('l','hts_key',this.value.trim()||null)};
 function sheetHtml(rows,minR,minC,hdr){var R=Math.max(rows.length+1,minR),C=Math.max(width(rows)+1,minC);
@@ -1010,12 +1018,19 @@ var TESS_SOURCES=[{name:'embedded',embedded:true},
 function loadTess(){if(window.Tesseract&&TESS_SRC)return Promise.resolve();if(!TESS_SRC){try{var eo=embeddedTess();if(eo){TESS_SRC={name:'embedded',opt:eo};return Promise.resolve()}}catch(e){}}var list=TESS_SOURCES.filter(function(x){return!x.embedded}),i=0;
   return new Promise(function(ok,no){var next=function(){if(i>=list.length){no(new Error('Could not load the text reader. Check your internet connection.'));return}var src=list[i++],s=document.createElement('script'),done=false;
     var t=setTimeout(function(){if(!done){done=true;s.remove();next()}},12000);s.src=src.js;s.onload=function(){if(done)return;done=true;clearTimeout(t);if(window.Tesseract){TESS_SRC=src;ok()}else next()};s.onerror=function(){if(done)return;done=true;clearTimeout(t);s.remove();next()};document.head.appendChild(s)};next()})}
-function tessWorker(logger){var o={};for(var k in (TESS_SRC||{opt:{}}).opt)o[k]=TESS_SRC.opt[k];if(logger)o.logger=logger;return Tesseract.createWorker('eng',1,o)}
+function tessWorker1(logger){var o={};for(var k in (TESS_SRC||{opt:{}}).opt)o[k]=TESS_SRC.opt[k];if(logger)o.logger=logger;return Tesseract.createWorker('eng',1,o)}
+var TESS_FAIL='';
+async function tessWorker(logger){try{return await withTimeout(tessWorker1(logger),45000)}catch(e){
+    if(!TESS_SRC||TESS_SRC.name!=='embedded')throw e;TESS_FAIL='built-in: '+(e&&e.message||e);
+    var online=[{name:'jsdelivr',opt:{workerPath:'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/worker.min.js',corePath:'https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1',langPath:'https://cdn.jsdelivr.net/npm/@tesseract.js-data/eng/4.0.0_best_int'}},
+      {name:'unpkg',opt:{workerPath:'https://unpkg.com/tesseract.js@5.1.1/dist/worker.min.js',corePath:'https://unpkg.com/tesseract.js-core@5.1.1',langPath:'https://unpkg.com/@tesseract.js-data/eng/4.0.0_best_int'}}];
+    for(var i=0;i<online.length;i++){try{TESS_SRC=online[i];return await withTimeout(tessWorker1(logger),60000)}catch(e2){TESS_FAIL+=' | '+online[i].name+': '+(e2&&e2.message||e2)}}
+    throw new Error(TESS_FAIL)}}
 function setProg(p,msg){$('progI').style.width=Math.round(p*100)+'%';if(msg)$('revP').textContent=msg}
 async function readSheet(canvas){REV=[];REVRAW='';
   $('revImg').src=scaled(canvas,300).toDataURL('image/jpeg',.7);$('revH').textContent='Reading handwriting…';$('revP').textContent='This can take a few seconds.';
   $('prog').classList.remove('hidden');setProg(0);$('revTw').classList.add('hidden');$('rawWrap').classList.add('hidden');$('err4').textContent='';$('revOk').disabled=true;$('rev').classList.remove('hidden');
-  try{if((store('l','hts_eng')||'free')==='ai')REV=await aiRead(canvas);
+  try{if(engKind()==='claude')REV=await aiRead(canvas);
     else{setProg(.05,'Loading the reading engine…');await loadTess();
       var wk=await tessWorker(function(m){if(m.status==='recognizing text')setProg(.1+.9*m.progress,'Reading handwriting… '+Math.round(m.progress*100)+'%')}),r;try{r=await wk.recognize(cleanForOcr(scaled(canvas,2000)))}finally{try{await wk.terminate()}catch(e){}}
       REVRAW=r.data.text||'';REV=arrangeWords(r.data)}
@@ -1060,7 +1075,7 @@ async function aiRead(canvas){var key=store('l','hts_key');if(!key)throw new Err
   var b64=scaled(canvas,1600).toDataURL('image/jpeg',.85).split(',')[1];
   var prompt='This photo shows a handwritten page. Convert it into a spreadsheet: one array per row, one string per column, keeping the rows and columns as they are laid out on the page. If the page has column headings, make them the first row. Skip a page title that is not part of the table. Use an empty string for a blank cell. Do not invent anything. Reply with JSON only, no other text: {"rows":[["A1","B1"],["A2","B2"]]}';
   var res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-    body:JSON.stringify({model:'claude-sonnet-5-5',max_tokens:4000,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:'image/jpeg',data:b64}},{type:'text',text:prompt}]}]})});
+    body:JSON.stringify({model:aiModel(),max_tokens:4000,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:'image/jpeg',data:b64}},{type:'text',text:prompt}]}]})});
   var j=await res.json().catch(function(){return{}});if(!res.ok)throw new Error('AI reader error: '+((j.error&&j.error.message)||res.status));
   setProg(.9,'Arranging the rows…');var txt=(j.content||[]).map(function(c){return c.text||''}).join('');REVRAW=txt;
   var m=txt.match(/\{[\s\S]*\}/);if(!m)throw new Error('The AI reader did not return a sheet. Try another photo.');
@@ -1151,7 +1166,40 @@ function renderCard(flag){var o=curCard(),c=o.c;if(!c){view('vCards');return}
   $('cForm').querySelectorAll('input[data-k]').forEach(function(i){if(c.low&&c.low.indexOf(i.dataset.k)>=0)i.classList.add('low');i.oninput=function(){i.setAttribute('value',i.value);i.classList.remove('low');var o2=curCard();o2.c.low=(o2.c.low||[]).filter(function(k){return k!==i.dataset.k});var pk=i.dataset.k.split('.');if(pk[0]==='m'){normCard(o2.c);o2.c.wt[+pk[1]][+pk[2]]='';o2.c.wst[+pk[1]]=''}setK(o2.c,i.dataset.k,i.value);setCards(o2.all);paintCalc(o2.c)}})}
 var XTAB=0;
 var XNAME=null;
-function renderCards(){var cs=sortCards(getCards()),book=cardBook(cs);if(XNAME){book.forEach(function(b,i){if(b.name===XNAME)XTAB=i});XNAME=null}if(XTAB>=book.length)XTAB=0;
+function engSel(){return store('l','hts_eng')||'auto'}
+function aiModel(){var e=engSel();return(e==='opus'||e==='auto')?'claude-opus-5-5':'claude-sonnet-5-5'}
+function engKind(){var e=engSel();if(e==='auto')return store('l','hts_key')?'claude':store('l','hts_gkey')?'gemini':'free';return e==='free'?'free':e==='gemini'?'gemini':'claude'}
+function syncAiBar(){var eng=engSel(),k=engKind(),auto=eng==='auto';$('cEng').value=eng;$('cAiBox').classList.toggle('hidden',k==='free'&&!auto);
+  $('cKey').classList.toggle('hidden',!(auto||k==='claude'));$('cGKey').classList.toggle('hidden',!(auto||k==='gemini'));$('cKey').value=store('l','hts_key')||'';$('cGKey').value=store('l','hts_gkey')||'';
+  $('cAiMsg').innerHTML=auto?('<b>Now using: '+(k==='claude'?'Claude Opus (best)':k==='gemini'?'Google Gemini (free)':'Offline reader')+'.</b> Paste a Claude key for the best reading of messy handwriting, or a Gemini key for free AI reading. With a key, the card photo is sent to that company to be read; without one, everything stays on the phone.'):k==='free'?'Reads on the phone, no internet needed. Marks and USN are reliable; handwritten names may need a letter fixed.':
+    k==='gemini'?'The card photo is sent to Google (Gemini) to be read. Needs internet. Free within Google\'s daily limits (get a key at aistudio.google.com). If it fails, the offline reader is used.':
+    'The card photo is sent to Anthropic (Claude) to be read. Needs internet; a small charge per card'+(eng==='opus'?' (Opus costs more than Sonnet)':'')+'. If it fails, the offline reader is used.'}
+$('cEng').onchange=function(){store('l','hts_eng',this.value);syncAiBar()};
+$('cChk').onclick=async function(){var m=$('cAiMsg'),t0=Date.now(),step='loading';m.textContent='Testing the built-in text reader… (can take up to a minute the first time)';
+  try{await withTimeout(loadTess(),40000);step='starting ('+(TESS_SRC&&TESS_SRC.name)+')';var wk=await withTimeout(tessWorker(),170000);step='reading';
+    var c=document.createElement('canvas');c.width=420;c.height=90;var x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,420,90);x.fillStyle='#000';x.font='bold 48px Arial';x.fillText('NAME 123',20,64);
+    var r=await withTimeout(wk.recognize(c),40000);try{await wk.terminate()}catch(e){}var got=String(r.data.text||'').trim();
+    m.innerHTML=/NAME/i.test(got)?'<span style="color:#1e7145">✅ Text reader works ('+esc(TESS_SRC.name)+', '+Math.round((Date.now()-t0)/1000)+' s). Read: "'+esc(got)+'"</span>':'<span style="color:#b3261e">⚠ Text reader ran but read "'+esc(got)+'"</span>'}
+  catch(e){m.innerHTML='<span style="color:#b3261e">❌ Text reader failed while '+esc(step)+': '+esc(e&&e.message||String(e))+'</span><br>Send a screenshot of this message. Meanwhile, choose <b>AI: Google Gemini</b> (free) above to read names.'}};
+$('cKey').oninput=function(){store('l','hts_key',this.value.trim()||null);if(engSel()==='auto')syncAiBar2()};
+function syncAiBar2(){var a=document.activeElement;syncAiBar();if(a&&a.focus)a.focus()}
+$('cGKey').oninput=function(){store('l','hts_gkey',this.value.trim()||null);store('l','hts_gmodel',null);if(engSel()==='auto')syncAiBar2()};
+async function geminiModel(key,force){var cached=store('l','hts_gmodel');if(cached&&!force)return cached;
+  var r=await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200&key='+encodeURIComponent(key)),j=await r.json().catch(function(){return{}});
+  if(!r.ok)throw new Error((j.error&&j.error.message)||('Error '+r.status));
+  var ms=(j.models||[]).filter(function(m){return(m.supportedGenerationMethods||[]).indexOf('generateContent')>=0}).map(function(m){return m.name.replace(/^models\//,'')})
+    .filter(function(n){return/^gemini-\d/.test(n)&&!/(image|tts|audio|live|embed|robotics|computer|thinking-exp|learnlm)/.test(n)});
+  var ver=function(n){var m=n.match(/gemini-(\d+(?:\.\d+)?)/);return m?parseFloat(m[1]):0},score=function(n){return ver(n)*100+(/-flash$|-flash-\d{3}$|-flash-latest$/.test(n)?30:/-flash/.test(n)&&!/lite/.test(n)?20:/lite/.test(n)?5:/pro/.test(n)?10:0)-(/preview|exp/.test(n)?3:0)};
+  ms.sort(function(a,b){return score(b)-score(a)});if(!ms.length)throw new Error('No Gemini model that can read images is available for this key.');
+  store('l','hts_gmodels',JSON.stringify(ms.slice(0,6)));store('l','hts_gmodel',ms[0]);return ms[0]}
+$('cTest').onclick=async function(){var k=engKind();$('cAiMsg').textContent='Checking the key…';
+  try{if(k==='gemini'){var gk=store('l','hts_gkey');if(!gk){$('cAiMsg').textContent='Paste your Gemini API key first.';return}var gm=await geminiModel(gk,true);
+      $('cAiMsg').innerHTML='<span style="color:#1e7145">✅ Key works. Scans will use '+esc(gm)+'.</span>';return}
+    var key=store('l','hts_key');if(!key){$('cAiMsg').textContent='Paste your API key first.';return}
+    var res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:aiModel(),max_tokens:5,messages:[{role:'user',content:'Reply OK'}]})});
+    var j=await res.json().catch(function(){return{}});$('cAiMsg').innerHTML=res.ok?'<span style="color:#1e7145">✅ Key works. Scans will use '+esc(aiModel())+'.</span>':'<span style="color:#b3261e">❌ '+esc((j.error&&j.error.message)||('Error '+res.status))+'</span>'}
+  catch(e){$('cAiMsg').innerHTML='<span style="color:#b3261e">❌ '+esc(e.message&&e.message!=='Failed to fetch'?e.message:'Could not reach the AI service. Check the internet connection.')+'</span>'}};
+function renderCards(){syncAiBar();var cs=sortCards(getCards()),book=cardBook(cs);if(XNAME){book.forEach(function(b,i){if(b.name===XNAME)XTAB=i});XNAME=null}if(XTAB>=book.length)XTAB=0;
   $('xTabs').innerHTML=book.map(function(b,i){return'<button type="button" data-t="'+i+'" class="'+(i===XTAB?'on':'')+'">'+esc(b.name)+'</button>'}).join('');
   $('xTabs').querySelectorAll('button').forEach(function(bt){bt.onclick=function(){XTAB=+bt.dataset.t;renderCards()}});
   var rows=book[XTAB].rows,h='';
@@ -1363,7 +1411,7 @@ async function readCardFree(canvas){
   /* read every box: skip empty ones, read digits in the rest */
   var todo=[];jobs.forEach(function(j){var q=j.quad,ym=(q[2].y+q[3].y)/2,x0=q[0](ym),x1=q[1](ym),y0=Math.max(rowAt(q[2],x0),rowAt(q[2],x1)),y1=Math.min(rowAt(q[3],x0),rowAt(q[3],x1)),ix=(x1-x0)*0.07,iy=(y1-y0)*0.03;
     var r=cropBin(c,x0+ix,y0+iy,x1-ix,y1-iy,true);if(r&&r.ink>0.012&&r.n>Math.max(20,(x1-x0)*(y1-y0)*0.006)&&(r.bb[3]-r.bb[1]+1)>=r.h*0.35)todo.push({j:j,r:r})});
-  var worker=null,unsure=0;if(textOk){try{setProg(.06,'Loading the text reader…');worker=await withTimeout(tessWorker(),45000)}catch(e){worker=null;textOk=false;textErr='start: '+(e&&e.message||e)}}
+  var worker=null,unsure=0;if(textOk){try{setProg(.06,'Loading the text reader…');worker=await withTimeout(tessWorker(),170000)}catch(e){worker=null;textOk=false;textErr='start: '+(e&&e.message||e)}}
   out.textSkipped=!textOk;out.textErr=textErr;
   try{
     if(worker){try{
@@ -1398,25 +1446,43 @@ async function readCardFree(canvas){
     reconcile(out)}
   finally{if(worker)try{await worker.terminate()}catch(e){}}
   out.unsure=unsure;return out}
-async function aiCard(canvas){var key=store('l','hts_key');if(!key)throw new Error('Paste your Claude API key on the HTS page (Reading engine) first, or switch to the free engine.');
-  setProg(.3,'Sending the photo to the AI reader…');var b64=scaled(canvas,1800).toDataURL('image/jpeg',.85).split(',')[1];
-  var prompt='This photo is a filled NITTE University marks card. Read the handwritten entries and reply with JSON only, no other text, in this shape: {"name":"","usn":"","sem":"","sec":"","course":"","code":"","faculty":"","mse":[MSE1,MSE2,MSE3],"mse3got":"","max":{"mse":"","la1":"","la2":""},"la1":"","la2":""}. Each of MSE1, MSE2 and MSE3 is 6 rows (main questions 1 to 6), each row 5 strings for sub questions a to e. "mse3got" is the "Marks obtained" box under ADDITIONAL / MSE - 3. "max" holds the Max. Marks column of the bottom table; "la1" and "la2" are the Marks Obtained for Learning Activity 1 and 2. Use "" for an empty box. Copy marks exactly as written; do not add totals or invent values.';
-  var res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-    body:JSON.stringify({model:'claude-sonnet-5-5',max_tokens:4000,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:'image/jpeg',data:b64}},{type:'text',text:prompt}]}]})});
-  var j=await res.json().catch(function(){return{}});if(!res.ok)throw new Error('AI reader error: '+((j.error&&j.error.message)||res.status));
-  var txt=(j.content||[]).map(function(c){return c.text||''}).join('');var m=txt.match(/\{[\s\S]*\}/);if(!m)throw new Error('The AI reader did not return the card. Try another photo.');
-  return JSON.parse(m[0])}
+function cardPrompt(){return'These images show a filled NITTE University marks card: image 1 is the whole card, image 2 is a close-up of its top part (the Name / University Seat Number / Semester / Section / Course / Faculty box and the start of MSE - 1). The handwriting may be very messy: read it as carefully as a teacher would, using the printed layout to know which box each entry belongs to. '+
+  'Reply with JSON only, no other text, in this shape: {"name":"","usn":"","sem":"","sec":"","course":"","code":"","faculty":"","mse":[MSE1,MSE2,MSE3],"mse3got":"","max":{"mse":"","la1":"","la2":""},"la1":"","la2":"","written":{"mse1":["","","","","",""],"mse2":["","","","","",""],"mse3":["","","","","",""],"t1":"","t2":"","t3":""},"unsure":[]}. '+
+  'Each of MSE1, MSE2, MSE3 is 6 rows (main questions 1 to 6), each row 5 strings for sub questions a to e. "written" holds the Total Marks column for each question and the Total Marks obtained of each exam, exactly as written. "mse3got" is the "Marks obtained" box under ADDITIONAL / MSE - 3. "max" holds the Max. Marks column of the bottom table; "la1"/"la2" are the Marks Obtained for Learning Activity 1 and 2. '+
+  'Names are usually Indian names; the USN is usually digits or a code like 1NT23CS045; Section is usually one letter. Use the written totals to double-check the marks: if a mark is hard to read, choose the value that makes the row add up to the written total. '+
+  'Use "" for an empty box. Do not invent values. In "unsure" list every box you are not confident about, as strings like "mse1.q3.b", "name", "usn", "sec".'}
+function cardImages(canvas){var full=scaled(canvas,2000).toDataURL('image/jpeg',.9).split(',')[1];var w=canvas.width,h=canvas.height,top=subCanvas(canvas,0,0,w,Math.round(h*0.4));
+  return[full,upscale(top,1800).toDataURL('image/jpeg',.9).split(',')[1]]}
+async function aiCard(canvas){var k=engKind(),imgs=cardImages(canvas),txt='';
+  setProg(.3,'Sending the photo to the AI reader…');
+  if(k==='gemini'){var gk=store('l','hts_gkey');if(!gk)throw new Error('paste your Gemini API key first');var gm=await geminiModel(gk,false),list=[];try{list=JSON.parse(store('l','hts_gmodels')||'[]')}catch(e){}
+    var tryModels=[gm].concat(list.filter(function(x){return x!==gm})).slice(0,3),lastErr=null;
+    for(var mi=0;mi<tryModels.length;mi++){var res=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+tryModels[mi]+':generateContent?key='+encodeURIComponent(gk),{method:'POST',headers:{'content-type':'application/json'},
+        body:JSON.stringify({contents:[{parts:[{inline_data:{mime_type:'image/jpeg',data:imgs[0]}},{inline_data:{mime_type:'image/jpeg',data:imgs[1]}},{text:cardPrompt()}]}],generationConfig:{temperature:0,responseMimeType:'application/json'}})});
+      var j=await res.json().catch(function(){return{}});if(res.ok){txt=((((j.candidates||[])[0]||{}).content||{}).parts||[]).map(function(p){return p.text||''}).join('');store('l','hts_gmodel',tryModels[mi]);break}
+      lastErr=new Error('Gemini: '+((j.error&&j.error.message)||res.status));if(!(res.status===429||res.status===404||res.status===403||res.status>=500))break}
+    if(!txt)throw lastErr||new Error('Gemini did not reply')}
+  else{var key=store('l','hts_key');if(!key)throw new Error('paste your Claude API key first');
+    var res2=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:aiModel(),max_tokens:4000,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:'image/jpeg',data:imgs[0]}},{type:'image',source:{type:'base64',media_type:'image/jpeg',data:imgs[1]}},{type:'text',text:cardPrompt()}]}]})});
+    var j2=await res2.json().catch(function(){return{}});if(!res2.ok)throw new Error('AI reader error: '+((j2.error&&j2.error.message)||res2.status));txt=(j2.content||[]).map(function(c){return c.text||''}).join('')}
+  setProg(.9,'Arranging the marks…');var m=txt.match(/\{[\s\S]*\}/);if(!m)throw new Error('The AI reader did not return the card. Try another photo.');
+  var o=JSON.parse(m[0]),fix6=function(sec){var out=blank6();(sec||[]).forEach(function(r,q){if(q<6&&r)(Array.isArray(r)?r:[]).forEach(function(v,i){if(i<5&&v!=null)out[q][i]=String(v).trim()})});return out};
+  o.mse=[0,1,2].map(function(s2){return fix6((o.mse||[])[s2])});var wr=o.written||{};
+  o.wt=[0,1,2].map(function(s2){var a2=wr['mse'+(s2+1)]||[];return[0,1,2,3,4,5].map(function(q){return a2[q]!=null?String(a2[q]).trim():''})});o.wst=[wr.t1||'',wr.t2||'',wr.t3||''].map(String);
+  o.low=[];(o.unsure||[]).forEach(function(u){var mm=String(u).match(/mse\s*([123])\D*q?\s*([1-6])\D*([a-e])/i);if(mm)o.low.push('m.'+(mm[1]-1)+'.'+(mm[2]-1)+'.'+'abcde'.indexOf(mm[3].toLowerCase()));else if(/^(name|usn|sem|sec|course|code|faculty|la1|la2)$/.test(u))o.low.push(u)});
+  o.unsure=o.low.length;o.aiRead=k==='gemini'?'Google Gemini':aiModel().indexOf('opus')>=0?'Claude Opus':'Claude Sonnet';return o}
 async function readCard(canvas){
   $('revImg').src=scaled(canvas,300).toDataURL('image/jpeg',.7);$('revH').textContent='Reading the marks card…';$('revP').textContent='This can take a few seconds.';
   $('prog').classList.remove('hidden');setProg(0);$('revTw').classList.add('hidden');$('rawWrap').classList.add('hidden');$('err4').textContent='';$('revOk').disabled=true;$('rev').classList.remove('hidden');
-  try{var src;if((store('l','hts_eng')||'free')==='ai')src=await aiCard(canvas);
+  try{var src,aiNote='';if(engKind()!=='free'){try{src=await aiCard(canvas)}catch(ae){aiNote=ae.message||String(ae);setProg(.05,'AI reader unavailable, using the offline reader…');src=await readCardFree(canvas)}}
     else src=await readCardFree(canvas);
     var all=getCards(),fresh=fillCard(newCard(),src),c=SCANCARD?all.filter(function(x){return x.id===SCANCARD})[0]:null,added=[];
     if(!c&&fresh.usn)c=all.filter(function(x){return x.usn===fresh.usn})[0];
     if(c)added=mergeCard(c,fresh);else{c=fresh;all.push(c);added=[0,1,2].filter(function(s2){return exTot(c,s2)!=null})}
-    setCards(all);CCUR=c.id;$('rev').classList.add('hidden');if(src.textSkipped||(!fresh.name&&!fresh.sec)){$('cDone').dataset.err='Name/Section could not be read: '+(src.textErr||'no text found in the Name/Section boxes')+'. Type them by tapping the row.'}else $('cDone').dataset.err='';XNAME=added.length?['MSE-1','MSE-2','MSE-3'][added[added.length-1]]:null;view('vCards');var k=calcCard(c);
+    setCards(all);CCUR=c.id;$('rev').classList.add('hidden');if(aiNote){$('cDone').dataset.err='AI reader not used ('+aiNote+'), so the offline reader was used'}else if(src.textSkipped||(!fresh.name&&!fresh.sec)){$('cDone').dataset.err='Name/Section could not be read: '+(src.textErr||'no text found in the Name/Section boxes')+'. Type them by tapping the row.'}else $('cDone').dataset.err='';XNAME=added.length?['MSE-1','MSE-2','MSE-3'][added[added.length-1]]:null;view('vCards');var k=calcCard(c);
     var exN=['MSE-1','MSE-2','MSE-3'],kept=[0,1,2].filter(function(s2){return exTot(c,s2)!=null&&added.indexOf(s2)<0});
-    $('cDone').innerHTML='✅ Converted to Excel: <b>'+esc(c.name||'Student')+'</b> ('+esc(c.usn||'no USN')+'). '+(added.length?'Added '+added.map(function(s2){return exN[s2]+' (total '+r2(exTot(c,s2))+')'}).join(', ')+'. ':'No new marks found on this photo. ')+(kept.length?kept.map(function(s2){return exN[s2]}).join(', ')+' kept as it was. ':'')+(src.unsure||c.textSkipped?' Some marks need checking: tap the row.':'')+' Tap <b>⬇ Download Excel</b> to save the file.'+($('cDone').dataset.err?'<br><span style="color:#b3261e">⚠ '+esc($('cDone').dataset.err)+'</span>':'');$('cDone').classList.remove('hidden')}
+    $('cDone').innerHTML=(src.aiRead?'🤖 Read by '+esc(src.aiRead)+'. ':'')+'✅ Converted to Excel: <b>'+esc(c.name||'Student')+'</b> ('+esc(c.usn||'no USN')+'). '+(added.length?'Added '+added.map(function(s2){return exN[s2]+' (total '+r2(exTot(c,s2))+')'}).join(', ')+'. ':'No new marks found on this photo. ')+(kept.length?kept.map(function(s2){return exN[s2]}).join(', ')+' kept as it was. ':'')+(src.unsure||c.textSkipped?' Some marks need checking: tap the row.':'')+' Tap <b>⬇ Download Excel</b> to save the file.'+($('cDone').dataset.err?'<br><span style="color:#b3261e">⚠ '+esc($('cDone').dataset.err)+'</span>':'');$('cDone').classList.remove('hidden')}
   catch(e){$('prog').classList.add('hidden');$('revH').textContent='Could not read the marks card';$('revP').textContent='';$('err4').textContent=e.message||String(e)}}
 (function(){var em=store('l','auto')||store('s','session');
   if(em&&teachers()[em])login(em,!!store('l','auto'));else show('signin')})();
